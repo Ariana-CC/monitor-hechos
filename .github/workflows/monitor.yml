@@ -1,0 +1,51 @@
+name: Monitor hechos de importancia
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"        # cada 5 minutos (GitHub puede retrasarlo unos minutos)
+  workflow_dispatch:             # botón "Run workflow" para correrlo a mano
+    inputs:
+      prueba:
+        description: "Enviar correo de PRUEBA (último hecho de Buenaventura)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write                # para guardar seen.json en el repositorio
+
+concurrency:
+  group: monitor-hechos          # nunca dos ejecuciones a la vez
+  cancel-in-progress: false
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements_monitor.txt
+
+      - name: Revisar SMV y BVL
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          TEST_MODE: ${{ inputs.prueba && '1' || '0' }}
+        run: python monitor_CC.py
+
+      - name: Guardar lo ya avisado
+        if: always() && inputs.prueba != true
+        run: |
+          if [ -n "$(git status --porcelain seen.json)" ]; then
+            git config user.name  "monitor-bot"
+            git config user.email "monitor-bot@users.noreply.github.com"
+            git add seen.json
+            git commit -m "Actualizar hechos vistos"
+            git pull --rebase
+            git push
+          fi
