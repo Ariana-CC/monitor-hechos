@@ -1,26 +1,27 @@
 """
-Monitor de Hechos de Importancia (SMV + BVL)
-============================================
+Monitor de Hechos de Importancia (SMV + BVL) y Hechos Esenciales (CMF Chile)
+==========================================================================
 
 Qué hace, en cada ejecución:
   1. Lee la página "Hechos de Importancia del Día" de la SMV (fuente principal,
      publica unos minutos antes que la BVL). Recorre todas sus páginas.
   2. Consulta la API de la BVL (fuente de respaldo) para hoy y ayer. Sirve para
-     atrapar lo que la SMV no mostró (por ejemplo, un hecho publicado justo
-     antes de medianoche, cuando la página "del día" se reinicia).
-  3. Filtra solo las empresas de EMPRESAS (abajo).
-  4. Compara contra seen.json para no avisar dos veces lo mismo.
-  5. Por cada hecho nuevo envía un correo con los PDFs adjuntos a todos los
-     destinatarios de la variable EMAIL_TO.
+     atrapar lo que la SMV no haya mostrado.
+  3. Lee la lista de Hechos Esenciales de los últimos 7 días de la CMF (Chile).
+  4. Filtra solo las empresas de EMPRESAS (Perú) y EMPRESAS_CMF (Chile).
+  5. Compara contra seen.json para no avisar dos veces lo mismo.
+  6. Por cada hecho nuevo envía un correo con los PDFs adjuntos a todos los
+     destinatarios de la variable EMAIL_TO ([HI] = Perú, [HE] = Chile).
+  7. Si una fuente falla ~1 hora seguida, envía un correo de aviso.
 
 Variables de entorno (se guardan como "Secrets" en GitHub):
   GMAIL_USER          correo del Gmail robot (remitente)
   GMAIL_APP_PASSWORD  contraseña de aplicación de 16 caracteres de ese Gmail
   EMAIL_TO            destinatarios separados por coma
 
-Modo prueba (TEST_MODE=1): no lee ni modifica seen.json; toma el hecho de
-importancia más reciente de Buenaventura en la BVL (últimos 120 días) y lo
-envía, para comprobar que el correo y el PDF adjunto llegan bien.
+Modo prueba (TEST_MODE=1): no lee ni modifica seen.json; envía el hecho más
+reciente de Buenaventura (BVL) y el hecho esencial más reciente de la CMF, para
+comprobar que los correos y los PDFs adjuntos llegan bien.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 from bs4 import BeautifulSoup
@@ -58,6 +60,20 @@ EMPRESAS = [
      "keywords": ["SOUTHERN PERU"], "bvl_rpj": "B20027"},
 ]
 
+# Chile (CMF): se compara con la razón social EXACTA que figura en la CMF,
+# para no confundir, por ejemplo, "CAP S.A." con otras empresas que contengan "CAP".
+EMPRESAS_CMF = [
+    {"ticker": "SQM", "nombre": "SQM",
+     "razon_social": "SOCIEDAD QUIMICA Y MINERA DE CHILE S.A."},
+    {"ticker": "CAP", "nombre": "CAP",
+     "razon_social": "CAP S.A."},
+    {"ticker": "VAPORES", "nombre": "Vapores (CSAV)",
+     "razon_social": "COMPAÑIA SUD AMERICANA DE VAPORES S.A."},
+]
+
+CMF_URL = "https://www.cmfchile.cl/institucional/hechos/hechos_portada.php"
+CMF_BASE = "https://www.cmfchile.cl"
+
 SMV_URL = ("https://www.smv.gob.pe/SIMV/Frm_hechosdeImportanciaDia"
            "?data=38C2EC33FA106691BB5B5039DACFDF50795D8EC3AF")
 SMV_GRID = "ctl00$MainContent$grdHechosImportancia2"
@@ -66,6 +82,8 @@ BVL_DOCS = "https://documents.bvl.com.pe"
 
 STATE_FILE = Path(__file__).with_name("seen.json")
 LIMA = timezone(timedelta(hours=-5))          # Perú no usa horario de verano
+SANTIAGO = ZoneInfo("America/Santiago")       # Chile sí cambia de hora
+ALERTA_FALLAS = 12                            # 12 revisiones seguidas ≈ 1 hora
 MAX_ADJUNTOS_MB = 20                          # Gmail acepta hasta 25 MB
 VENTANA_DUPLICADO_MIN = 45                    # SMV vs BVL del mismo hecho
 HEARTBEAT_DIAS = 25                           # evita que GitHub apague el horario
@@ -92,9 +110,12 @@ class Hecho:
     descripcion: str
     documentos: list[str] = field(default_factory=list)   # URLs de los PDFs
     expediente: str = ""
+    uid: str = ""               # identificador fijo (CMF: número de documento)
 
     def doc_ids(self) -> list[str]:
         """Identificadores únicos de cada documento (para deduplicar)."""
+        if self.uid:
+            return [f"{self.fuente}:{self.uid}"]
         return [f"{self.fuente}:{d}" for d in self.documentos] or \
                [f"{self.fuente}:{self.empresa_raw}:{self.fecha_hora:%Y%m%d%H%M}"]
 
@@ -276,6 +297,53 @@ def leer_bvl(session: requests.Session) -> list[Hecho]:
 
 
 # ---------------------------------------------------------------------------
+# Fuente 3: CMF Chile – Hechos esenciales de los últimos 7 días
+# ---------------------------------------------------------------------------
+def parsear_cmf(html: str, solo_seguidas: bool = True) -> list[Hecho]:
+    """Lee la tabla (Fecha-Hora | N° de documento | Entidad | Materia)."""
+    soup = BeautifulSoup(html, "html.parser")
+    exactos = {normalizar(e["razon_social"]): e for e in EMPRESAS_CMF}
+    hechos = []
+    for tr in soup.find_all("tr"):
+        celdas = tr.find_all("td", recursive=False)
+        if len(celdas) != 4:
+            continue
+        fecha_txt = celdas[0].get_text(strip=True)
+        if not re.fullmatch(r"\d\d/\d\d/\d{4} \d\d:\d\d:\d\d", fecha_txt):
+            continue
+        entidad = celdas[2].get_text(" ", strip=True)
+        emp = exactos.get(normalizar(entidad))
+        if not emp:
+            if solo_seguidas:
+                continue
+            emp = {"ticker": "EJEMPLO-CMF", "nombre": entidad}
+        a = celdas[1].find("a", href=True)
+        numero = celdas[1].get_text(strip=True)
+        # El enlace trae "&t=<hora>" que cambia en cada carga: no sirve como ID.
+        url = (CMF_BASE + a["href"] if a and a["href"].startswith("/") else
+               (a["href"] if a else ""))
+        materias = [m.strip() for m in celdas[3].get_text("\n").split("\n") if m.strip()]
+        fh = datetime.strptime(fecha_txt, "%d/%m/%Y %H:%M:%S").replace(tzinfo=SANTIAGO)
+        hechos.append(Hecho(
+            fuente="CMF", empresa_raw=entidad, empresa=emp, fecha_hora=fh,
+            tipo="; ".join(materias), descripcion="",
+            documentos=[url] if url else [], expediente=numero, uid=numero,
+        ))
+    return hechos
+
+
+def leer_cmf(session: requests.Session) -> list[Hecho]:
+    r = session.get(CMF_URL, timeout=TIMEOUT)
+    r.raise_for_status()
+    r.encoding = r.encoding or "utf-8"         # la CMF declara UTF-8
+    if "Hechos Esenciales" not in r.text:
+        raise RuntimeError("La CMF no devolvió la página esperada")
+    hechos = parsear_cmf(r.text)
+    log(f"CMF: {len(hechos)} hecho(s) de empresas seguidas en los últimos 7 días")
+    return hechos
+
+
+# ---------------------------------------------------------------------------
 # Estado (qué ya se avisó)
 # ---------------------------------------------------------------------------
 def cargar_estado() -> dict | None:
@@ -307,7 +375,8 @@ def es_duplicado_entre_fuentes(h: Hecho, estado: dict) -> bool:
 
 def registrar(h: Hecho, estado: dict) -> None:
     for d in h.doc_ids():
-        estado["vistos"][d] = {"t": h.fecha_hora.isoformat(), "fuente": h.fuente,
+        estado["vistos"][d] = {"t": h.fecha_hora.astimezone(LIMA).isoformat(),
+                               "fuente": h.fuente,
                                "ticker": h.empresa["ticker"]}
 
 
@@ -331,7 +400,7 @@ def descargar_pdfs(session: requests.Session, h: Hecho) -> list[tuple[str, bytes
         if total > MAX_ADJUNTOS_MB * 1024 * 1024:
             log("  Límite de tamaño alcanzado; el resto va solo como link")
             break
-        nombre = (f"{h.empresa['ticker']}_{h.fecha_hora:%Y-%m-%d_%H%M}"
+        nombre = (f"{h.empresa['ticker']}_{h.fecha_hora.astimezone(LIMA):%Y-%m-%d_%H%M}"
                   f"{'_' + str(i) if len(h.documentos) > 1 else ''}.pdf")
         adjuntos.append((nombre, contenido))
     return adjuntos
@@ -340,17 +409,26 @@ def descargar_pdfs(session: requests.Session, h: Hecho) -> list[tuple[str, bytes
 def construir_correo(h: Hecho, adjuntos: list[tuple[str, bytes]],
                      remitente: str, destinatarios: list[str],
                      prueba: bool = False) -> EmailMessage:
-    tipo_corto = re.sub(r"^\d+\.\s*", "", h.tipo).strip().capitalize()[:70]
-    asunto = (f"{'[PRUEBA] ' if prueba else ''}[HI] {h.empresa['ticker']} – "
-              f"{tipo_corto} – {h.fecha_hora:%d/%m %H:%M}")
+    chile = h.fuente == "CMF"
+    prefijo = "[HE]" if chile else "[HI]"
+    clase = "hecho esencial" if chile else "hecho de importancia"
+    etiqueta_num = "N° documento" if chile else "Expediente"
+    t_lima = h.fecha_hora.astimezone(LIMA)
+    tipo_corto = re.sub(r"^\d+\.\s*", "", h.tipo.split(";")[0]).strip().capitalize()[:70]
+    asunto = (f"{'[PRUEBA] ' if prueba else ''}{prefijo} {h.empresa['ticker']} – "
+              f"{tipo_corto} – {t_lima:%d/%m %H:%M}")
+    hora_txt = f"{t_lima:%d/%m/%Y %H:%M} (hora de Lima)"
+    if chile:
+        hora_txt += f"  |  {h.fecha_hora:%H:%M} hora de Chile"
     links_txt = "\n".join(f"  - {u}" for u in h.documentos) or "  (sin documentos)"
     texto = (
-        f"{h.empresa['nombre']} publicó un hecho de importancia.\n\n"
+        f"{h.empresa['nombre']} publicó un {clase}.\n\n"
         f"Empresa:      {h.empresa_raw}\n"
-        f"Tipo:         {h.tipo}\n"
-        f"Publicado:    {h.fecha_hora:%d/%m/%Y %H:%M} (hora de Lima)\n"
-        f"Fuente:       {h.fuente}{'  |  Expediente ' + h.expediente if h.expediente else ''}\n\n"
-        f"Descripción:\n{h.descripcion or '(sin descripción)'}\n\n"
+        f"{'Materia' if chile else 'Tipo'}:{' ' * (6 if chile else 9)}{h.tipo}\n"
+        f"Publicado:    {hora_txt}\n"
+        f"Fuente:       {h.fuente}{'  |  ' + etiqueta_num + ' ' + h.expediente if h.expediente else ''}\n\n"
+        + (f"Descripción:\n{h.descripcion}\n\n" if h.descripcion else
+           ("" if chile else "Descripción:\n(sin descripción)\n\n")) +
         f"Documentos ({len(adjuntos)} adjunto(s)):\n{links_txt}\n\n"
         f"—\nAviso automático del monitor de hechos de importancia.\n"
         f"Detectado: {ahora_lima():%d/%m/%Y %H:%M:%S}\n"
@@ -394,11 +472,26 @@ def modo_prueba(session: requests.Session) -> None:
     hechos = parsear_bvl(data)
     if not hechos:
         sys.exit("No se encontró ningún hecho reciente para la prueba")
-    h = hechos[0]
-    adj = descargar_pdfs(session, h)
-    enviar(construir_correo(h, adj, usuario, destinos, prueba=True), usuario, clave)
-    log(f"Correo de PRUEBA enviado a {len(destinos)} destinatario(s) "
-        f"con {len(adj)} adjunto(s): {h.empresa['ticker']} {h.fecha_hora:%d/%m %H:%M}")
+    pruebas = [hechos[0]]
+    # Prueba de la CMF: el hecho más reciente de SQM/CAP/Vapores; si no hubo
+    # ninguno en 7 días, el más reciente de cualquier empresa (marcado EJEMPLO-CMF).
+    try:
+        r = session.get(CMF_URL, timeout=TIMEOUT)
+        r.raise_for_status()
+        r.encoding = r.encoding or "utf-8"
+        cmf = parsear_cmf(r.text) or parsear_cmf(r.text, solo_seguidas=False)
+        if cmf:
+            pruebas.append(max(cmf, key=lambda x: x.fecha_hora))
+        else:
+            log("CMF: la lista no trajo hechos para la prueba")
+    except Exception as e:
+        log(f"ERROR leyendo CMF en la prueba: {e}")
+    for h in pruebas:
+        adj = descargar_pdfs(session, h)
+        enviar(construir_correo(h, adj, usuario, destinos, prueba=True), usuario, clave)
+        log(f"Correo de PRUEBA enviado a {len(destinos)} destinatario(s) con "
+            f"{len(adj)} adjunto(s): {h.fuente} {h.empresa['ticker']} "
+            f"{h.fecha_hora.astimezone(LIMA):%d/%m %H:%M} (Lima)")
 
 
 def main() -> int:
@@ -413,26 +506,43 @@ def main() -> int:
     primera_vez = estado is None
     if primera_vez:
         estado = {"vistos": {}, "heartbeat": ahora_lima().isoformat()}
+    # Compatibilidad con un seen.json anterior: SMV y BVL ya estaban iniciadas.
+    estado.setdefault("fuentes_iniciadas", [] if primera_vez else ["SMV", "BVL"])
+    estado.setdefault("fallas", {})
+    estado_antes = json.dumps(estado, sort_keys=True)
 
-    hechos, errores = [], []
-    for nombre, lector in (("SMV", leer_smv), ("BVL", leer_bvl)):
+    fuentes = (("SMV", leer_smv), ("BVL", leer_bvl), ("CMF", leer_cmf))
+    hechos, errores = [], {}
+    for nombre, lector in fuentes:
         try:
             hechos += lector(session)
         except Exception as e:
-            errores.append(f"{nombre}: {e}")
+            errores[nombre] = str(e)
             log(f"ERROR leyendo {nombre}: {e}")
 
-    if len(errores) == 2:
-        # Ninguna fuente respondió: falla la ejecución para que GitHub lo marque
-        # en rojo (y te avise por correo si fallan varias seguidas).
+    alertas = actualizar_fallas(estado, [n for n, _ in fuentes], errores)
+
+    if len(errores) == len(fuentes):
+        # Ninguna fuente respondió: falla la ejecución para que GitHub lo marque en rojo.
         log("Ninguna fuente respondió.")
+        enviar_alertas(alertas)
+        if json.dumps(estado, sort_keys=True) != estado_antes:
+            guardar_estado(estado)
         return 1
+
+    # Fuentes que se leen por primera vez: se registra lo existente sin avisar
+    # (evita recibir de golpe hechos de días anteriores).
+    nuevas_fuentes = {n for n, _ in fuentes
+                      if n not in estado["fuentes_iniciadas"] and n not in errores}
 
     # SMV primero: es la fuente más rápida y la que manda en la deduplicación.
     hechos.sort(key=lambda h: (h.fuente != "SMV", h.fecha_hora))
     nuevos = []
     for h in hechos:
-        if h.documentos:
+        if h.uid:
+            if any(d in estado["vistos"] for d in h.doc_ids()):
+                continue
+        elif h.documentos:
             # Solo los documentos que aún no se avisaron (cubre el caso de un
             # documento nuevo agregado a un expediente que ya conocíamos).
             pendientes = [u for u in h.documentos
@@ -446,13 +556,16 @@ def main() -> int:
             registrar(h, estado)
             continue
         registrar(h, estado)
+        if h.fuente in nuevas_fuentes:
+            continue                       # arranque silencioso de esa fuente
         nuevos.append(h)
 
-    if primera_vez:
-        log(f"Primera ejecución: se registraron {len(nuevos)} hecho(s) ya existentes "
-            "sin enviar correos. Desde ahora solo se avisarán los nuevos.")
-        guardar_estado(estado)
-        return 0
+    if nuevas_fuentes:
+        estado["fuentes_iniciadas"] = sorted(set(estado["fuentes_iniciadas"]) | nuevas_fuentes)
+        log(f"Primera lectura de {', '.join(sorted(nuevas_fuentes))}: se registró lo "
+            "existente sin enviar correos. Desde ahora solo se avisarán los nuevos.")
+
+    enviar_alertas(alertas)
 
     fallidos = 0
     if nuevos:
@@ -461,7 +574,8 @@ def main() -> int:
             try:
                 adj = descargar_pdfs(session, h)
                 enviar(construir_correo(h, adj, usuario, destinos), usuario, clave)
-                log(f"ENVIADO: {h.empresa['ticker']} {h.fecha_hora:%d/%m %H:%M} "
+                log(f"ENVIADO: {h.empresa['ticker']} "
+                    f"{h.fecha_hora.astimezone(LIMA):%d/%m %H:%M} (Lima) "
                     f"({h.fuente}, {len(adj)} adjunto(s))")
             except Exception as e:
                 # No se marca como visto: se reintenta en la próxima revisión.
@@ -476,10 +590,56 @@ def main() -> int:
     # "Latido": actualiza el archivo cada ~25 días aunque no haya novedades,
     # porque GitHub desactiva los horarios de repos públicos sin actividad en 60 días.
     ultimo = datetime.fromisoformat(estado.get("heartbeat", "2000-01-01T00:00:00-05:00"))
-    if nuevos or ahora_lima() - ultimo > timedelta(days=HEARTBEAT_DIAS):
+    if ahora_lima() - ultimo > timedelta(days=HEARTBEAT_DIAS):
         estado["heartbeat"] = ahora_lima().isoformat()
+    if json.dumps(estado, sort_keys=True) != estado_antes:
         guardar_estado(estado)
     return 1 if fallidos else 0
+
+
+# ---------------------------------------------------------------------------
+# Avisos cuando una fuente deja de responder
+# ---------------------------------------------------------------------------
+def actualizar_fallas(estado: dict, nombres: list[str], errores: dict) -> list[tuple[str, str]]:
+    """Cuenta fallas seguidas por fuente. Devuelve alertas (asunto, texto) a enviar:
+    una al llegar a ALERTA_FALLAS y otra cuando la fuente se recupera."""
+    alertas = []
+    for n in nombres:
+        previas = estado["fallas"].get(n, 0)
+        if n in errores:
+            estado["fallas"][n] = previas + 1
+            if previas + 1 == ALERTA_FALLAS:
+                alertas.append((
+                    f"[MONITOR] La fuente {n} no responde desde hace ~1 hora",
+                    f"El monitor no puede leer {n} desde hace {ALERTA_FALLAS} revisiones "
+                    f"seguidas (~1 hora).\n\nÚltimo error:\n{errores[n]}\n\n"
+                    "Las demás fuentes siguen funcionando. Si el problema continúa, "
+                    "puede que la página haya cambiado y haya que ajustar el código.\n"
+                    "Te llegará otro aviso cuando se recupere."))
+        else:
+            if previas >= ALERTA_FALLAS:
+                alertas.append((f"[MONITOR] La fuente {n} volvió a funcionar",
+                                f"{n} responde normalmente otra vez (tras {previas} "
+                                "revisiones fallidas)."))
+            estado["fallas"].pop(n, None)
+    return alertas
+
+
+def enviar_alertas(alertas: list[tuple[str, str]]) -> None:
+    if not alertas:
+        return
+    try:
+        usuario, clave, destinos = credenciales()
+        for asunto, texto in alertas:
+            msg = EmailMessage()
+            msg["Subject"] = asunto
+            msg["From"] = f"Monitor Hechos de Importancia <{usuario}>"
+            msg["To"] = ", ".join(destinos)
+            msg.set_content(texto + f"\n\n—\n{ahora_lima():%d/%m/%Y %H:%M} (hora de Lima)\n")
+            enviar(msg, usuario, clave)
+            log(f"ALERTA enviada: {asunto}")
+    except BaseException as e:                 # una alerta fallida no debe frenar el resto
+        log(f"No se pudo enviar la alerta: {e}")
 
 
 if __name__ == "__main__":
