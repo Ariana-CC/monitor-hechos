@@ -6,5 +6,16 @@
   "SMV"
  ],
  "heartbeat": "2026-10-08T13:01:32.182131-05:00",
- "vistos": {}
+ "vistos": {
+  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261014103701/BVN323T2632AVISO32INVITACION32CC.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-14T10:43:58-05:00",
+   "ticker": "BVN"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={F00F3BA1-0000-C616-98B7-5CDA984B90A2}": {
+   "fuente": "SMV",
+   "t": "2026-10-14T10:37:00-05:00",
+   "ticker": "BVN"
+  }
+ }
 }
