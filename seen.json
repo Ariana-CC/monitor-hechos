@@ -22,6 +22,11 @@
    "t": "2026-10-14T10:43:58-05:00",
    "ticker": "BVN"
   },
+  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261015153001/HI32PRODUCCION323T26.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-15T15:34:28-05:00",
+   "ticker": "BVN"
+  },
   "SMV:MINSUR S.A.:202610141919": {
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
@@ -31,6 +36,11 @@
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
    "ticker": "MINSURI1"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={404341A1-0000-C31E-A0B3-DAC8D0C20A90}": {
+   "fuente": "SMV",
+   "t": "2026-10-15T15:30:00-05:00",
+   "ticker": "BVN"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={70ED3CA1-0000-C916-9810-D64314BCDF95}": {
    "fuente": "SMV",
