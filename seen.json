@@ -47,6 +47,16 @@
    "t": "2026-10-16T16:29:57-05:00",
    "ticker": "SCCO"
   },
+  "BVL:https://documents.bvl.com.pe/hhii/B60052/20261020155701/HDEI32SCC32RESULTADOS323T2026.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-20T16:01:01-05:00",
+   "ticker": "SCCO"
+  },
+  "BVL:https://documents.bvl.com.pe/hhii/B60052/20261020155701/SCCO32PR323Q26324532ESP.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-20T16:01:01-05:00",
+   "ticker": "SCCO"
+  },
   "SMV:MINSUR S.A.:202610141919": {
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
@@ -56,6 +66,11 @@
    "fuente": "SMV",
    "t": "2026-10-15T17:41:00-05:00",
    "ticker": "SPCC"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={001B5BA1-0000-C217-90B2-24A26ED09E9F}": {
+   "fuente": "SMV",
+   "t": "2026-10-20T15:57:00-05:00",
+   "ticker": "SCCO"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={00EE3CA1-0000-CB14-A33F-C18CC6DC4C3F}": {
    "fuente": "SMV",
@@ -96,6 +111,11 @@
    "fuente": "SMV",
    "t": "2026-10-14T10:37:00-05:00",
    "ticker": "BVN"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={F01A5BA1-0000-C11C-9351-C7346ABE8CFE}": {
+   "fuente": "SMV",
+   "t": "2026-10-20T15:57:00-05:00",
+   "ticker": "SCCO"
   }
  }
 }
