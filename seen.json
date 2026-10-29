@@ -27,6 +27,16 @@
    "t": "2026-10-15T15:34:28-05:00",
    "ticker": "BVN"
   },
+  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261029165801/CARTAB200039549520261029161100.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-29T17:06:25-05:00",
+   "ticker": "BVN"
+  },
+  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261029165901/CIB200032026TI301.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-29T17:06:25-05:00",
+   "ticker": "BVN"
+  },
   "BVL:https://documents.bvl.com.pe/hhii/B20027/20261015174101/CARTAB200279549520261015173103.PDF": {
    "fuente": "BVL",
    "t": "2026-10-15T17:44:33-05:00",
@@ -72,6 +82,11 @@
    "t": "2026-10-27T15:55:27-05:00",
    "ticker": "CVERDEC1"
   },
+  "SMV:COMPAÑIA DE MINAS BUENAVENTURA S.A.A.:202610291658": {
+   "fuente": "SMV",
+   "t": "2026-10-29T16:58:00-05:00",
+   "ticker": "BVN"
+  },
   "SMV:MINSUR S.A.:202610141919": {
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
@@ -107,6 +122,11 @@
    "t": "2026-10-15T15:30:00-05:00",
    "ticker": "BVN"
   },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={40AF89A1-0000-C717-9B94-748FF4969813}": {
+   "fuente": "SMV",
+   "t": "2026-10-29T16:58:00-05:00",
+   "ticker": "BVN"
+  },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={40B941A1-0000-C519-8092-C4886C441E27}": {
    "fuente": "SMV",
    "t": "2026-10-15T17:40:00-05:00",
@@ -126,6 +146,11 @@
    "fuente": "SMV",
    "t": "2026-10-27T14:38:00-05:00",
    "ticker": "CVERDEC1"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={A0AF89A1-0000-CE1A-9146-0520AC902821}": {
+   "fuente": "SMV",
+   "t": "2026-10-29T16:59:00-05:00",
+   "ticker": "BVN"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={A0DF7EA1-0000-CA10-ABAD-64DCA7A020C4}": {
    "fuente": "SMV",
