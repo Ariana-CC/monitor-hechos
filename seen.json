@@ -1,6 +1,6 @@
 {
  "fallas": {
-  "SMV": 3
+  "SMV": 4
  },
  "fuentes_iniciadas": [
   "BVL",
@@ -37,6 +37,11 @@
   "BVL:https://documents.bvl.com.pe/hhii/B20003/20261029165901/CIB200032026TI301.PDF": {
    "fuente": "BVL",
    "t": "2026-10-29T17:06:25-05:00",
+   "ticker": "BVN"
+  },
+  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261029193401/CIB200032026TC301.PDF": {
+   "fuente": "BVL",
+   "t": "2026-10-29T19:56:37-05:00",
    "ticker": "BVN"
   },
   "BVL:https://documents.bvl.com.pe/hhii/B20027/20261015174101/CARTAB200279549520261015173103.PDF": {
