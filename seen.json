@@ -167,6 +167,11 @@
    "t": "2026-10-27T14:38:00-05:00",
    "ticker": "CVERDEC1"
   },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={90E18EA1-0000-C01C-9F94-D429E50C3CFF}": {
+   "fuente": "SMV",
+   "t": "2026-10-30T17:14:00-05:00",
+   "ticker": "SCCO"
+  },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={A0AF89A1-0000-CE1A-9146-0520AC902821}": {
    "fuente": "SMV",
    "t": "2026-10-29T16:59:00-05:00",
