@@ -1,5 +1,7 @@
 {
- "fallas": {},
+ "fallas": {
+  "CMF": 1
+ },
  "fuentes_iniciadas": [
   "BVL",
   "CMF",
