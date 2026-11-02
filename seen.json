@@ -1,7 +1,5 @@
 {
- "fallas": {
-  "CMF": 1
- },
+ "fallas": {},
  "fuentes_iniciadas": [
   "BVL",
   "CMF",
@@ -138,6 +136,11 @@
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
    "ticker": "MINSURI1"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={201A9EA1-0000-CF1B-9199-2632C5C1898F}": {
+   "fuente": "SMV",
+   "t": "2026-11-02T16:10:00-05:00",
+   "ticker": "SPCC"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={30B941A1-0000-C518-B010-E6037914CB4B}": {
    "fuente": "SMV",
