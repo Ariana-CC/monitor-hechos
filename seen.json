@@ -62,6 +62,11 @@
    "t": "2026-11-02T16:15:07-05:00",
    "ticker": "SPCC"
   },
+  "BVL:https://documents.bvl.com.pe/hhii/B20027/20261105160101/CARTAB200279549520261105153817.PDF": {
+   "fuente": "BVL",
+   "t": "2026-11-05T16:05:11-05:00",
+   "ticker": "SPCC"
+  },
   "BVL:https://documents.bvl.com.pe/hhii/B60052/20261015174001/SCC32HDI324532NP32DIVIDENDOS.PDF": {
    "fuente": "BVL",
    "t": "2026-10-15T17:49:33-05:00",
@@ -127,6 +132,11 @@
    "t": "2026-10-15T17:41:00-05:00",
    "ticker": "SPCC"
   },
+  "SMV:SOUTHERN PERU COPPER CORPORATION, SUCURSAL DEL PERU:202611051601": {
+   "fuente": "SMV",
+   "t": "2026-11-05T16:01:00-05:00",
+   "ticker": "SPCC"
+  },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={001B5BA1-0000-C217-90B2-24A26ED09E9F}": {
    "fuente": "SMV",
    "t": "2026-10-20T15:57:00-05:00",
@@ -161,6 +171,11 @@
    "fuente": "SMV",
    "t": "2026-10-15T15:30:00-05:00",
    "ticker": "BVN"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={4084ADA1-0000-C116-9E3B-730E4D5FC33B}": {
+   "fuente": "SMV",
+   "t": "2026-11-05T16:01:00-05:00",
+   "ticker": "SPCC"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={40AF89A1-0000-C717-9B94-748FF4969813}": {
    "fuente": "SMV",
