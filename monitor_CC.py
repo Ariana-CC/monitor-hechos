@@ -8,10 +8,13 @@ Qué hace, en cada ejecución:
   2. Consulta la API de la BVL (fuente de respaldo) para hoy y ayer. Sirve para
      atrapar lo que la SMV no haya mostrado.
   3. Lee la lista de Hechos Esenciales de los últimos 7 días de la CMF (Chile).
+  3b. Revisa la pestaña "Información Financiera" de cada empresa de la CMF: en
+     Chile los estados financieros trimestrales no se anuncian como hecho esencial.
   4. Filtra solo las empresas de EMPRESAS (Perú) y EMPRESAS_CMF (Chile).
   5. Compara contra seen.json para no avisar dos veces lo mismo.
   6. Por cada hecho nuevo envía un correo con los PDFs adjuntos a todos los
-     destinatarios de la variable EMAIL_TO ([HI] = Perú, [HE] = Chile).
+     destinatarios de la variable EMAIL_TO ([HI] = Perú, [HE] = Chile,
+     [EEFF] = estados financieros de Chile, con el PDF y el Análisis Razonado).
   7. Si una fuente falla ~1 hora seguida, envía un correo de aviso.
 
 Variables de entorno (se guardan como "Secrets" en GitHub):
@@ -36,6 +39,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 import requests
@@ -64,15 +68,23 @@ EMPRESAS = [
 # para no confundir, por ejemplo, "CAP S.A." con otras empresas que contengan "CAP".
 EMPRESAS_CMF = [
     {"ticker": "SQM", "nombre": "SQM",
-     "razon_social": "SOCIEDAD QUIMICA Y MINERA DE CHILE S.A."},
+     "razon_social": "SOCIEDAD QUIMICA Y MINERA DE CHILE S.A.", "rut": "93007000"},
     {"ticker": "CAP", "nombre": "CAP",
-     "razon_social": "CAP S.A."},
+     "razon_social": "CAP S.A.", "rut": "91297000"},
     {"ticker": "VAPORES", "nombre": "Vapores (CSAV)",
-     "razon_social": "COMPAÑIA SUD AMERICANA DE VAPORES S.A."},
+     "razon_social": "COMPAÑIA SUD AMERICANA DE VAPORES S.A.", "rut": "90160000"},
+    {"ticker": "SMSAAM", "nombre": "SM SAAM",
+     "razon_social": "SOCIEDAD MATRIZ SAAM S.A.", "rut": "76196718"},
 ]
+# rut: RUT sin dígito verificador, tal como aparece en la dirección de la página
+# de la empresa en la CMF. Se usa para la sección "Información Financiera".
 
 CMF_URL = "https://www.cmfchile.cl/institucional/hechos/hechos_portada.php"
 CMF_BASE = "https://www.cmfchile.cl"
+CMF_ENTIDAD = ("https://www.cmfchile.cl/institucional/mercados/entidad.php"
+               "?mercado=V&rut={rut}&grupo=&tipoentidad=RVEMI&vig=VI"
+               "&control=svs&pestania={pestania}")
+TRIMESTRE = {3: "1T", 6: "2T", 9: "3T", 12: "4T"}
 
 SMV_URL = ("https://www.smv.gob.pe/SIMV/Frm_hechosdeImportanciaDia"
            "?data=38C2EC33FA106691BB5B5039DACFDF50795D8EC3AF")
@@ -111,6 +123,8 @@ class Hecho:
     documentos: list[str] = field(default_factory=list)   # URLs de los PDFs
     expediente: str = ""
     uid: str = ""               # identificador fijo (CMF: número de documento)
+    nombres: list[str] = field(default_factory=list)       # nombre de cada adjunto
+    aviso_inicial: bool = False  # EEFF: avisar aunque sea la primera lectura
 
     def doc_ids(self) -> list[str]:
         """Identificadores únicos de cada documento (para deduplicar)."""
@@ -344,6 +358,110 @@ def leer_cmf(session: requests.Session) -> list[Hecho]:
 
 
 # ---------------------------------------------------------------------------
+# Fuente 4: CMF Chile – Información Financiera (estados financieros trimestrales)
+# ---------------------------------------------------------------------------
+# En Chile la publicación de los EEFF NO viene como hecho esencial: se suben a la
+# pestaña "Información Financiera" de cada empresa. Se consulta el último cierre
+# trimestral (y el anterior) hasta que aparezcan los documentos.
+class FuenteParcial(RuntimeError):
+    """Algunas empresas fallaron, pero las demás sí se leyeron (van en .hechos)."""
+    def __init__(self, mensaje: str, hechos: list):
+        super().__init__(mensaje)
+        self.hechos = hechos
+
+
+def cierres_recientes(hoy, n: int = 2) -> list[tuple[int, int]]:
+    """Últimos n cierres trimestrales ANTERIORES a hoy, del más reciente al más
+    antiguo. Ej.: 05/11/2026 -> [(2026, 9), (2026, 6)]."""
+    anio, mes = hoy.year, ((hoy.month - 1) // 3) * 3
+    salida = []
+    while len(salida) < n:
+        if mes == 0:
+            anio, mes = anio - 1, 12
+        salida.append((anio, mes))
+        mes -= 3
+    return salida
+
+
+def etiqueta_periodo(anio: int, mes: int) -> str:
+    return f"{TRIMESTRE[mes]}{anio % 100:02d}" + (" (anual)" if mes == 12 else "")
+
+
+def parsear_eeff(html: str, emp: dict, anio: int, mes: int, url_base: str) -> Hecho | None:
+    """None si el período aún no está publicado. Lanza error si la página no es
+    la esperada (para que se cuente como falla y llegue el aviso)."""
+    if "No existe informaci" in html:
+        return None                                     # aún no publicado
+    soup = BeautifulSoup(html, "html.parser")
+    infbal = soup.find(id="infbal")
+    if not infbal:
+        raise RuntimeError(f"{emp['ticker']}: la CMF devolvió una página inesperada")
+    periodo = re.sub(r"\s+", "", infbal.get_text())
+    if f"{mes:02d}/{anio}" not in periodo:
+        raise RuntimeError(f"{emp['ticker']}: la CMF devolvió otro período ({periodo})")
+    et = etiqueta_periodo(anio, mes).split(" ")[0]
+    pdf = razonado = None
+    otros = []
+    for a in soup.find_all("a", href=True):
+        if "safec_ifrs_verarchivo" not in a["href"]:
+            continue
+        texto = normalizar(a.get_text(" ", strip=True))
+        url = urljoin(url_base, a["href"])
+        if "ESTADOS FINANCIEROS (PDF)" in texto:
+            pdf = url
+        elif "RAZONADO" in texto:
+            razonado = url
+        else:
+            otros.append(a.get_text(" ", strip=True))
+    if not pdf:
+        return None          # período creado pero sin el PDF todavía: se espera
+    docs, nombres = [pdf], [f"{emp['ticker']}_EEFF_{et}.pdf"]
+    if razonado:
+        docs.append(razonado)
+        nombres.append(f"{emp['ticker']}_AnalisisRazonado_{et}.pdf")
+    return Hecho(
+        fuente="EEFF", empresa_raw=emp["razon_social"], empresa=emp,
+        fecha_hora=ahora_lima(), tipo=f"Estados financieros {etiqueta_periodo(anio, mes)}",
+        descripcion=("Otros documentos en la CMF: " + "; ".join(otros)) if otros else "",
+        documentos=docs, expediente=f"{mes:02d}/{anio}",
+        uid=f"{emp['ticker']}:{anio}{mes:02d}", nombres=nombres,
+    )
+
+
+def consultar_eeff(session: requests.Session, emp: dict, anio: int, mes: int) -> Hecho | None:
+    url = CMF_ENTIDAD.format(rut=emp["rut"], pestania=3)
+    r = session.post(url, timeout=TIMEOUT, headers={"Referer": url}, data={
+        "forma": "P", "mm": f"{mes:02d}", "aa": str(anio),
+        "tipo": "C", "tipo_norma": "IFRS"})                # consolidado, IFRS
+    r.raise_for_status()
+    r.encoding = "utf-8"
+    return parsear_eeff(r.text, emp, anio, mes, url)
+
+
+def leer_eeff(session: requests.Session, vistos: dict) -> list[Hecho]:
+    hechos, errores = [], []
+    cierres = cierres_recientes(ahora_lima().date())
+    for emp in EMPRESAS_CMF:
+        for i, (anio, mes) in enumerate(cierres):
+            if f"EEFF:{emp['ticker']}:{anio}{mes:02d}" in vistos:
+                continue                                    # ya avisado
+            try:
+                h = consultar_eeff(session, emp, anio, mes)
+            except Exception as e:
+                errores.append(f"{emp['ticker']} {mes:02d}/{anio}: {e}")
+                continue
+            if h:
+                h.aviso_inicial = (i == 0)                  # el cierre más reciente
+                hechos.append(h)
+            time.sleep(1)
+    log(f"EEFF CMF: {len(hechos)} período(s) publicado(s) sin avisar aún"
+        + (f"; {len(errores)} consulta(s) fallida(s)" if errores else ""))
+    if errores:
+        raise FuenteParcial(" | ".join(errores), hechos)
+    return hechos
+
+
+# ---------------------------------------------------------------------------
 # Estado (qué ya se avisó)
 # ---------------------------------------------------------------------------
 def cargar_estado() -> dict | None:
@@ -355,7 +473,9 @@ def cargar_estado() -> dict | None:
 def guardar_estado(estado: dict) -> None:
     # Conserva solo lo de los últimos 40 días para que el archivo no crezca.
     limite = (ahora_lima() - timedelta(days=40)).isoformat()
-    estado["vistos"] = {k: v for k, v in estado["vistos"].items() if v["t"] >= limite}
+    # Los EEFF se guardan siempre (son pocos): si se borraran, se volverían a avisar.
+    estado["vistos"] = {k: v for k, v in estado["vistos"].items()
+                        if v["t"] >= limite or k.startswith("EEFF:")}
     STATE_FILE.write_text(json.dumps(estado, ensure_ascii=False, indent=1,
                                      sort_keys=True), encoding="utf-8")
 
@@ -400,7 +520,8 @@ def descargar_pdfs(session: requests.Session, h: Hecho) -> list[tuple[str, bytes
         if total > MAX_ADJUNTOS_MB * 1024 * 1024:
             log("  Límite de tamaño alcanzado; el resto va solo como link")
             break
-        nombre = (f"{h.empresa['ticker']}_{h.fecha_hora.astimezone(LIMA):%Y-%m-%d_%H%M}"
+        nombre = (h.nombres[i - 1] if len(h.nombres) >= i else
+                  f"{h.empresa['ticker']}_{h.fecha_hora.astimezone(LIMA):%Y-%m-%d_%H%M}"
                   f"{'_' + str(i) if len(h.documentos) > 1 else ''}.pdf")
         adjuntos.append((nombre, contenido))
     return adjuntos
@@ -409,6 +530,8 @@ def descargar_pdfs(session: requests.Session, h: Hecho) -> list[tuple[str, bytes
 def construir_correo(h: Hecho, adjuntos: list[tuple[str, bytes]],
                      remitente: str, destinatarios: list[str],
                      prueba: bool = False) -> EmailMessage:
+    if h.fuente == "EEFF":
+        return construir_correo_eeff(h, adjuntos, remitente, destinatarios, prueba)
     chile = h.fuente == "CMF"
     prefijo = "[HE]" if chile else "[HI]"
     clase = "hecho esencial" if chile else "hecho de importancia"
@@ -432,6 +555,40 @@ def construir_correo(h: Hecho, adjuntos: list[tuple[str, bytes]],
         f"Documentos ({len(adjuntos)} adjunto(s)):\n{links_txt}\n\n"
         f"—\nAviso automático del monitor de hechos de importancia.\n"
         f"Detectado: {ahora_lima():%d/%m/%Y %H:%M:%S}\n"
+    )
+    msg = EmailMessage()
+    msg["Subject"] = asunto
+    msg["From"] = f"Monitor Hechos de Importancia <{remitente}>"
+    msg["To"] = ", ".join(destinatarios)
+    msg.set_content(texto)
+    for nombre, contenido in adjuntos:
+        msg.add_attachment(contenido, maintype="application", subtype="pdf",
+                           filename=nombre)
+    return msg
+
+
+def construir_correo_eeff(h: Hecho, adjuntos: list[tuple[str, bytes]],
+                          remitente: str, destinatarios: list[str],
+                          prueba: bool = False) -> EmailMessage:
+    t = ahora_lima()
+    periodo = h.tipo.replace("Estados financieros ", "")
+    asunto = (f"{'[PRUEBA] ' if prueba else ''}[EEFF] {h.empresa['ticker']} – "
+              f"Estados financieros {periodo} – {t:%d/%m %H:%M}")
+    nombres_adj = "\n".join(f"  - {n}" for n, _ in adjuntos) or "  (no se pudieron adjuntar)"
+    pagina = CMF_ENTIDAD.format(rut=h.empresa["rut"], pestania=3)
+    texto = (
+        f"{h.empresa['nombre']} publicó sus estados financieros {periodo} en la CMF.\n\n"
+        f"Empresa:      {h.empresa_raw}\n"
+        f"Período:      {h.expediente} (consolidado, IFRS)\n"
+        f"Detectado:    {t:%d/%m/%Y %H:%M} (hora de Lima)  |  "
+        f"{t.astimezone(SANTIAGO):%H:%M} hora de Chile\n"
+        f"Fuente:       CMF – Información Financiera\n\n"
+        + (f"{h.descripcion}\n\n" if h.descripcion else "") +
+        f"Adjuntos ({len(adjuntos)}):\n{nombres_adj}\n\n"
+        f"El XBRL y los demás archivos están en la página de la empresa en la CMF\n"
+        f"(pestaña Información Financiera, elegir período {h.expediente}):\n  {pagina}\n\n"
+        f"—\nAviso automático del monitor de hechos de importancia.\n"
+        f"La hora es la de detección (el monitor revisa cada ~10 minutos).\n"
     )
     msg = EmailMessage()
     msg["Subject"] = asunto
@@ -486,6 +643,18 @@ def modo_prueba(session: requests.Session) -> None:
             log("CMF: la lista no trajo hechos para la prueba")
     except Exception as e:
         log(f"ERROR leyendo CMF en la prueba: {e}")
+    # Prueba de EEFF: el último trimestre ya publicado de la primera empresa de la CMF.
+    try:
+        emp = EMPRESAS_CMF[0]
+        for anio, mes in cierres_recientes(hoy, n=4):
+            h = consultar_eeff(session, emp, anio, mes)
+            if h:
+                pruebas.append(h)
+                break
+        else:
+            log("EEFF: no se encontró un trimestre publicado para la prueba")
+    except Exception as e:
+        log(f"ERROR leyendo EEFF en la prueba: {e}")
     for h in pruebas:
         adj = descargar_pdfs(session, h)
         enviar(construir_correo(h, adj, usuario, destinos, prueba=True), usuario, clave)
@@ -511,11 +680,21 @@ def main() -> int:
     estado.setdefault("fallas", {})
     estado_antes = json.dumps(estado, sort_keys=True)
 
-    fuentes = (("SMV", leer_smv), ("BVL", leer_bvl), ("CMF", leer_cmf))
+    # Empresas de la CMF ya iniciadas (para que una empresa agregada después, como
+    # SM SAAM, no dispare de golpe sus hechos de los últimos 7 días).
+    estado.setdefault("empresas_cmf_iniciadas",
+                      ["SQM", "CAP", "VAPORES"] if "CMF" in estado["fuentes_iniciadas"] else [])
+
+    fuentes = (("SMV", leer_smv), ("BVL", leer_bvl), ("CMF", leer_cmf),
+               ("EEFF", lambda s: leer_eeff(s, estado["vistos"])))
     hechos, errores = [], {}
     for nombre, lector in fuentes:
         try:
             hechos += lector(session)
+        except FuenteParcial as e:                 # algunas empresas sí se leyeron
+            hechos += e.hechos
+            errores[nombre] = str(e)
+            log(f"ERROR parcial leyendo {nombre}: {e}")
         except Exception as e:
             errores[nombre] = str(e)
             log(f"ERROR leyendo {nombre}: {e}")
@@ -532,8 +711,8 @@ def main() -> int:
 
     # Fuentes que se leen por primera vez: se registra lo existente sin avisar
     # (evita recibir de golpe hechos de días anteriores).
-    nuevas_fuentes = {n for n, _ in fuentes
-                      if n not in estado["fuentes_iniciadas"] and n not in errores}
+    nuevas_fuentes = {n for n, _ in fuentes if n not in estado["fuentes_iniciadas"]}
+    cmf_iniciadas = set(estado["empresas_cmf_iniciadas"])
 
     # SMV primero: es la fuente más rápida y la que manda en la deduplicación.
     hechos.sort(key=lambda h: (h.fuente != "SMV", h.fecha_hora))
@@ -556,14 +735,20 @@ def main() -> int:
             registrar(h, estado)
             continue
         registrar(h, estado)
-        if h.fuente in nuevas_fuentes:
+        if h.fuente in nuevas_fuentes and not h.aviso_inicial:
             continue                       # arranque silencioso de esa fuente
+        if h.fuente == "CMF" and h.empresa["ticker"] not in cmf_iniciadas:
+            continue                       # empresa recién agregada: arranque silencioso
         nuevos.append(h)
 
-    if nuevas_fuentes:
-        estado["fuentes_iniciadas"] = sorted(set(estado["fuentes_iniciadas"]) | nuevas_fuentes)
-        log(f"Primera lectura de {', '.join(sorted(nuevas_fuentes))}: se registró lo "
-            "existente sin enviar correos. Desde ahora solo se avisarán los nuevos.")
+    iniciadas_ahora = {n for n in nuevas_fuentes if n not in errores}
+    if iniciadas_ahora:
+        estado["fuentes_iniciadas"] = sorted(set(estado["fuentes_iniciadas"]) | iniciadas_ahora)
+        log(f"Primera lectura de {', '.join(sorted(iniciadas_ahora))}: se registró lo "
+            "existente sin enviar correos (salvo EEFF del último trimestre). "
+            "Desde ahora solo se avisarán los nuevos.")
+    if "CMF" not in errores:
+        estado["empresas_cmf_iniciadas"] = sorted(e["ticker"] for e in EMPRESAS_CMF)
 
     enviar_alertas(alertas)
 
