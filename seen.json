@@ -134,6 +134,16 @@
    "t": "2026-11-06T14:25:29-05:00",
    "ticker": "CVERDEC1"
   },
+  "BVL:https://documents.bvl.com.pe/hhii/CM0006/20261110165501/FCX32261110323Q202632ESP32CARTA.DOCX": {
+   "fuente": "BVL",
+   "t": "2026-11-10T17:01:54-05:00",
+   "ticker": "CVERDEC1"
+  },
+  "BVL:https://documents.bvl.com.pe/hhii/CM0006/20261110165501/FCX322611103245323Q32202632ESPA209OL.PDF": {
+   "fuente": "BVL",
+   "t": "2026-11-10T17:01:54-05:00",
+   "ticker": "CVERDEC1"
+  },
   "CMF:2026110703591": {
    "fuente": "CMF",
    "t": "2026-11-03T18:13:48-05:00",
