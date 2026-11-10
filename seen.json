@@ -244,10 +244,20 @@
    "t": "2026-10-16T16:26:00-05:00",
    "ticker": "SCCO"
   },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={7076C7A1-0000-C21D-A0BB-85330D3583DD}": {
+   "fuente": "SMV",
+   "t": "2026-11-10T16:55:00-05:00",
+   "ticker": "CVERDEC1"
+  },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={70ED3CA1-0000-C916-9810-D64314BCDF95}": {
    "fuente": "SMV",
    "t": "2026-10-14T19:19:00-05:00",
    "ticker": "MINSURI1"
+  },
+  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={8076C7A1-0000-CB11-861F-4DCA05FDB2ED}": {
+   "fuente": "SMV",
+   "t": "2026-11-10T16:55:00-05:00",
+   "ticker": "CVERDEC1"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={90DF7EA1-0000-C512-882A-5BD3DC36C153}": {
    "fuente": "SMV",
