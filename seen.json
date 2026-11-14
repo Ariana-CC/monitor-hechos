@@ -5,7 +5,10 @@
   "SQM",
   "VAPORES"
  ],
- "fallas": {},
+ "fallas": {
+  "CMF": 1,
+  "EEFF": 1
+ },
  "fuentes_iniciadas": [
   "BVL",
   "CMF",
