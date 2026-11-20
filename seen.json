@@ -6,9 +6,7 @@
   "VAPORES"
  ],
  "fallas": {
-  "CMF": 1,
-  "EEFF": 1,
-  "SMV": 100
+  "SMV": 101
  },
  "fuentes_iniciadas": [
   "BVL",
