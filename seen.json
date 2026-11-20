@@ -6,7 +6,7 @@
   "VAPORES"
  ],
  "fallas": {
-  "SMV": 149
+  "SMV": 150
  },
  "fuentes_iniciadas": [
   "BVL",
@@ -199,6 +199,11 @@
   "EEFF:VAPORES:202606": {
    "fuente": "EEFF",
    "t": "2026-11-05T21:01:00.819534-05:00",
+   "ticker": "VAPORES"
+  },
+  "EEFF:VAPORES:202609": {
+   "fuente": "EEFF",
+   "t": "2026-11-20T10:20:31.115566-05:00",
    "ticker": "VAPORES"
   },
   "SMV:COMPAÑIA DE MINAS BUENAVENTURA S.A.A.:202610291658": {
