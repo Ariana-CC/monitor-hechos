@@ -5,7 +5,9 @@
   "SQM",
   "VAPORES"
  ],
- "fallas": {},
+ "fallas": {
+  "CMF": 1
+ },
  "fuentes_iniciadas": [
   "BVL",
   "CMF",
@@ -14,16 +16,6 @@
  ],
  "heartbeat": "2026-11-02T13:10:32.127494-05:00",
  "vistos": {
-  "BVL:https://documents.bvl.com.pe/hhii/A20032/20261014191901/POSICION32DE32DERIVADOS32SETIEMBRE322026.PDF": {
-   "fuente": "BVL",
-   "t": "2026-10-14T19:24:10-05:00",
-   "ticker": "MINSURI1"
-  },
-  "BVL:https://documents.bvl.com.pe/hhii/A20032/20261014191902/CARTAA200329549520261014160217.PDF": {
-   "fuente": "BVL",
-   "t": "2026-10-14T19:24:10-05:00",
-   "ticker": "MINSURI1"
-  },
   "BVL:https://documents.bvl.com.pe/hhii/A20032/20261030111301/CIA200322026TI301.PDF": {
    "fuente": "BVL",
    "t": "2026-10-30T11:21:56-05:00",
@@ -38,11 +30,6 @@
    "fuente": "BVL",
    "t": "2026-11-12T08:37:31-05:00",
    "ticker": "MINSURI1"
-  },
-  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261014103701/BVN323T2632AVISO32INVITACION32CC.PDF": {
-   "fuente": "BVL",
-   "t": "2026-10-14T10:43:58-05:00",
-   "ticker": "BVN"
   },
   "BVL:https://documents.bvl.com.pe/hhii/B20003/20261015153001/HI32PRODUCCION323T26.PDF": {
    "fuente": "BVL",
@@ -209,11 +196,6 @@
    "t": "2026-10-29T16:58:00-05:00",
    "ticker": "BVN"
   },
-  "SMV:MINSUR S.A.:202610141919": {
-   "fuente": "SMV",
-   "t": "2026-10-14T19:19:00-05:00",
-   "ticker": "MINSURI1"
-  },
   "SMV:SOUTHERN PERU COPPER CORPORATION, SUCURSAL DEL PERU:202610151741": {
    "fuente": "SMV",
    "t": "2026-10-15T17:41:00-05:00",
@@ -238,11 +220,6 @@
    "fuente": "SMV",
    "t": "2026-10-30T15:43:00-05:00",
    "ticker": "BVN"
-  },
-  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={00EE3CA1-0000-CB14-A33F-C18CC6DC4C3F}": {
-   "fuente": "SMV",
-   "t": "2026-10-14T19:19:00-05:00",
-   "ticker": "MINSURI1"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={201A9EA1-0000-CF1B-9199-2632C5C1898F}": {
    "fuente": "SMV",
@@ -294,11 +271,6 @@
    "t": "2026-11-10T16:55:00-05:00",
    "ticker": "CVERDEC1"
   },
-  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={70ED3CA1-0000-C916-9810-D64314BCDF95}": {
-   "fuente": "SMV",
-   "t": "2026-10-14T19:19:00-05:00",
-   "ticker": "MINSURI1"
-  },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={8076C7A1-0000-CB11-861F-4DCA05FDB2ED}": {
    "fuente": "SMV",
    "t": "2026-11-10T16:55:00-05:00",
@@ -348,11 +320,6 @@
    "fuente": "SMV",
    "t": "2026-10-15T17:41:00-05:00",
    "ticker": "SPCC"
-  },
-  "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={F00F3BA1-0000-C616-98B7-5CDA984B90A2}": {
-   "fuente": "SMV",
-   "t": "2026-10-14T10:37:00-05:00",
-   "ticker": "BVN"
   },
   "SMV:https://www.smv.gob.pe/ConsultasP8/documento.aspx?vidDoc={F01A5BA1-0000-C11C-9351-C7346ABE8CFE}": {
    "fuente": "SMV",
