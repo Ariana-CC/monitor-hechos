@@ -5,7 +5,9 @@
   "SQM",
   "VAPORES"
  ],
- "fallas": {},
+ "fallas": {
+  "CMF": 1
+ },
  "fuentes_iniciadas": [
   "BVL",
   "CMF",
@@ -28,11 +30,6 @@
    "fuente": "BVL",
    "t": "2026-11-12T08:37:31-05:00",
    "ticker": "MINSURI1"
-  },
-  "BVL:https://documents.bvl.com.pe/hhii/B20003/20261015153001/HI32PRODUCCION323T26.PDF": {
-   "fuente": "BVL",
-   "t": "2026-10-15T15:34:28-05:00",
-   "ticker": "BVN"
   },
   "BVL:https://documents.bvl.com.pe/hhii/B20003/20261029165801/CARTAB200039549520261029161100.PDF": {
    "fuente": "BVL",
